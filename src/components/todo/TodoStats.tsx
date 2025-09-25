@@ -1,17 +1,20 @@
+import { Clock, CheckCircle, Calendar } from 'lucide-react';
+
 interface TodoStatsProps {
   total: number;
   active: number;
   completed: number;
+  scheduled?: number;
 }
 
-export const TodoStats = ({ total, active, completed }: TodoStatsProps) => {
+export const TodoStats = ({ total, active, completed, scheduled = 0 }: TodoStatsProps) => {
   if (total === 0) {
     return null;
   }
 
   return (
     <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border/30">
-      <div className="flex gap-6 text-sm">
+      <div className="flex gap-4 text-sm flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-primary"></div>
           <span className="text-muted-foreground">
@@ -32,6 +35,15 @@ export const TodoStats = ({ total, active, completed }: TodoStatsProps) => {
             Complétées: <span className="font-medium text-foreground">{completed}</span>
           </span>
         </div>
+
+        {scheduled > 0 && (
+          <div className="flex items-center gap-2">
+            <Clock className="w-3 h-3 text-primary" />
+            <span className="text-muted-foreground">
+              Programmées: <span className="font-medium text-foreground">{scheduled}</span>
+            </span>
+          </div>
+        )}
       </div>
 
       {completed > 0 && (

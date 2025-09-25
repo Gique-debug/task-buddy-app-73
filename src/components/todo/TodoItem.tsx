@@ -1,8 +1,10 @@
-import { Trash2 } from 'lucide-react';
+import { Trash2, Clock, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Todo } from '@/types/todo';
 import { cn } from '@/lib/utils';
+import { format, isPast } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface TodoItemProps {
   todo: Todo;
@@ -12,11 +14,17 @@ interface TodoItemProps {
 }
 
 export const TodoItem = ({ todo, onToggle, onDelete, style }: TodoItemProps) => {
+  const isScheduled = todo.scheduledFor && !todo.completed;
+  const isPastDue = todo.scheduledFor && isPast(todo.scheduledFor) && !todo.completed;
+  const isNotified = todo.notified && !todo.completed;
+
   return (
     <div
       className={cn(
-        "flex items-center gap-4 p-4 bg-card rounded-lg border border-border/50 transition-all duration-300 hover:shadow-md group animate-in fade-in slide-in-from-top-2",
-        todo.completed && "opacity-75"
+        "flex items-center gap-4 p-4 bg-card rounded-lg border transition-all duration-300 hover:shadow-md group animate-in fade-in slide-in-from-top-2",
+        todo.completed && "opacity-75",
+        isPastDue && "border-destructive/50 bg-destructive/5",
+        isNotified && "border-amber-500/50 bg-amber-50/50"
       )}
       style={style}
     >
@@ -26,16 +34,35 @@ export const TodoItem = ({ todo, onToggle, onDelete, style }: TodoItemProps) => 
         className="h-5 w-5 data-[state=checked]:bg-success data-[state=checked]:border-success"
       />
       
-      <span
-        className={cn(
-          "flex-1 text-base transition-all duration-300",
-          todo.completed
-            ? "line-through text-muted-foreground"
-            : "text-foreground"
+      <div className="flex-1 space-y-1">
+        <span
+          className={cn(
+            "text-base transition-all duration-300 block",
+            todo.completed
+              ? "line-through text-muted-foreground"
+              : "text-foreground"
+          )}
+        >
+          {todo.text}
+        </span>
+        
+        {isScheduled && (
+          <div className={cn(
+            "flex items-center gap-2 text-sm",
+            isPastDue ? "text-destructive" : isNotified ? "text-amber-600" : "text-muted-foreground"
+          )}>
+            {isNotified ? (
+              <Bell className="h-3 w-3" />
+            ) : (
+              <Clock className="h-3 w-3" />
+            )}
+            <span>
+              {isPastDue ? "En retard - " : isNotified ? "Notifiée - " : ""}
+              {format(todo.scheduledFor!, "PPp", { locale: fr })}
+            </span>
+          </div>
         )}
-      >
-        {todo.text}
-      </span>
+      </div>
 
       <Button
         variant="ghost"

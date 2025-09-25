@@ -3,6 +3,8 @@ export interface Todo {
   text: string;
   completed: boolean;
   createdAt: Date;
+  scheduledFor?: Date;
+  notified?: boolean;
 }
 
 export interface TodoState {

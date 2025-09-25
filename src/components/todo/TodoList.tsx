@@ -22,16 +22,31 @@ export const TodoList = ({ todos, onToggle, onDelete }: TodoListProps) => {
     );
   }
 
+  // Trier les tâches : programmées en premier, puis par date de création
+  const sortedTodos = [...todos].sort((a, b) => {
+    // Les tâches programmées non complétées en premier
+    if (a.scheduledFor && !a.completed && (!b.scheduledFor || b.completed)) return -1;
+    if (b.scheduledFor && !b.completed && (!a.scheduledFor || a.completed)) return 1;
+    
+    // Si les deux sont programmées, trier par date programmée
+    if (a.scheduledFor && b.scheduledFor && !a.completed && !b.completed) {
+      return a.scheduledFor.getTime() - b.scheduledFor.getTime();
+    }
+    
+    // Sinon, trier par date de création (plus récent en premier)
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+
   return (
     <div className="space-y-2">
-      {todos.map((todo, index) => (
+      {sortedTodos.map((todo, index) => (
         <TodoItem
           key={todo.id}
           todo={todo}
           onToggle={onToggle}
           onDelete={onDelete}
           style={{
-            animationDelay: `${index * 100}ms`,
+            animationDelay: `${index * 50}ms`,
           }}
         />
       ))}
