@@ -4,10 +4,11 @@ import { TodoItem } from './TodoItem';
 interface TodoListProps {
   todos: Todo[];
   onToggle: (id: string) => void;
+  onUpdate: (id: string, text: string, scheduledFor?: Date) => void;
   onDelete: (id: string) => void;
 }
 
-export const TodoList = ({ todos, onToggle, onDelete }: TodoListProps) => {
+export const TodoList = ({ todos, onToggle, onUpdate, onDelete }: TodoListProps) => {
   if (todos.length === 0) {
     return (
       <div className="text-center py-12">
@@ -44,6 +45,7 @@ export const TodoList = ({ todos, onToggle, onDelete }: TodoListProps) => {
           key={todo.id}
           todo={todo}
           onToggle={onToggle}
+          onUpdate={onUpdate}
           onDelete={onDelete}
           style={{
             animationDelay: `${index * 50}ms`,

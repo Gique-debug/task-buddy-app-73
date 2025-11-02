@@ -177,6 +177,21 @@ export const TodoApp = () => {
     );
   };
 
+  const updateTodo = (id: string, text: string, scheduledFor?: Date) => {
+    setTodos(prev =>
+      prev.map(todo =>
+        todo.id === id 
+          ? { 
+              ...todo, 
+              text: text.trim(), 
+              scheduledFor,
+              notified: false // Réinitialiser la notification si on change la date
+            } 
+          : todo
+      )
+    );
+  };
+
   const deleteTodo = (id: string) => {
     setTodos(prev => prev.filter(todo => todo.id !== id));
   };
@@ -201,6 +216,7 @@ export const TodoApp = () => {
             <TodoList
               todos={todos}
               onToggle={toggleTodo}
+              onUpdate={updateTodo}
               onDelete={deleteTodo}
             />
           </div>

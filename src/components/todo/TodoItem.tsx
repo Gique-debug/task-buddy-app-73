@@ -1,19 +1,23 @@
-import { Trash2, Clock, Bell } from 'lucide-react';
+import { useState } from 'react';
+import { Trash2, Clock, Bell, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Todo } from '@/types/todo';
 import { cn } from '@/lib/utils';
 import { format, isPast } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { EditTodoDialog } from './EditTodoDialog';
 
 interface TodoItemProps {
   todo: Todo;
   onToggle: (id: string) => void;
+  onUpdate: (id: string, text: string, scheduledFor?: Date) => void;
   onDelete: (id: string) => void;
   style?: React.CSSProperties;
 }
 
-export const TodoItem = ({ todo, onToggle, onDelete, style }: TodoItemProps) => {
+export const TodoItem = ({ todo, onToggle, onUpdate, onDelete, style }: TodoItemProps) => {
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const isScheduled = todo.scheduledFor && !todo.completed;
   const isPastDue = todo.scheduledFor && isPast(todo.scheduledFor) && !todo.completed;
   const isNotified = todo.notified && !todo.completed;
@@ -64,14 +68,32 @@ export const TodoItem = ({ todo, onToggle, onDelete, style }: TodoItemProps) => 
         )}
       </div>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onDelete(todo.id)}
-        className="opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsEditOpen(true)}
+          className="opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-primary hover:bg-primary/10 h-8 w-8 p-0"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onDelete(todo.id)}
+          className="opacity-0 group-hover:opacity-100 transition-all duration-300 hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <EditTodoDialog
+        todo={todo}
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        onUpdate={onUpdate}
+      />
     </div>
   );
 };
