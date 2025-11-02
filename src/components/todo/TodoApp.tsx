@@ -29,6 +29,7 @@ export const TodoApp = () => {
   });
   const { toast } = useToast();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [activeAlarms, setActiveAlarms] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
   // Enregistrer le Service Worker et demander la permission pour les notifications
   useEffect(() => {
@@ -100,6 +101,48 @@ export const TodoApp = () => {
     oscillator.stop(audioContext.currentTime + 0.5);
   }, []);
 
+  // Démarrer une alarme répétée pour une tâche
+  const startAlarm = useCallback((todoId: string) => {
+    // Arrêter l'alarme existante si elle existe
+    stopAlarm(todoId);
+
+    // Jouer le son immédiatement
+    playNotificationSound();
+
+    // Configurer la répétition toutes les 3 secondes pendant 2 minutes
+    let count = 0;
+    const maxCount = 40; // 40 * 3 secondes = 2 minutes
+
+    const interval = setInterval(() => {
+      count++;
+      if (count >= maxCount) {
+        clearInterval(interval);
+        setActiveAlarms(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(todoId);
+          return newMap;
+        });
+      } else {
+        playNotificationSound();
+      }
+    }, 3000);
+
+    setActiveAlarms(prev => new Map(prev).set(todoId, interval));
+  }, [playNotificationSound]);
+
+  // Arrêter l'alarme d'une tâche
+  const stopAlarm = useCallback((todoId: string) => {
+    setActiveAlarms(prev => {
+      const newMap = new Map(prev);
+      const interval = newMap.get(todoId);
+      if (interval) {
+        clearInterval(interval);
+        newMap.delete(todoId);
+      }
+      return newMap;
+    });
+  }, []);
+
   // Vérifier les tâches programmées toutes les 10 secondes
   useEffect(() => {
     const checkTasks = async () => {
@@ -121,8 +164,8 @@ export const TodoApp = () => {
               !todo.completed &&
               todo.scheduledFor <= now
             ) {
-              // Jouer le son de notification
-              playNotificationSound();
+              // Démarrer l'alarme répétée de 2 minutes
+              startAlarm(todo.id);
               
               // Afficher la notification native si permission accordée
               if (Notification.permission === 'granted') {
@@ -154,8 +197,12 @@ export const TodoApp = () => {
     // Puis vérifier toutes les 10 secondes
     const interval = setInterval(checkTasks, 10000);
 
-    return () => clearInterval(interval);
-  }, [todos, playNotificationSound, toast]);
+    return () => {
+      clearInterval(interval);
+      // Nettoyer toutes les alarmes actives au démontage
+      activeAlarms.forEach(alarm => clearInterval(alarm));
+    };
+  }, [todos, playNotificationSound, toast, startAlarm, activeAlarms]);
 
   const addTodo = (text: string, scheduledFor?: Date) => {
     const newTodo: Todo = {
@@ -170,6 +217,9 @@ export const TodoApp = () => {
   };
 
   const toggleTodo = (id: string) => {
+    // Arrêter l'alarme si la tâche est cochée
+    stopAlarm(id);
+    
     setTodos(prev =>
       prev.map(todo =>
         todo.id === id ? { ...todo, completed: !todo.completed } : todo
