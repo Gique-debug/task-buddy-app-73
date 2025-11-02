@@ -6,9 +6,37 @@ import { TodoList } from './TodoList';
 import { TodoStats } from './TodoStats';
 import { useToast } from '@/hooks/use-toast';
 
+const STORAGE_KEY = 'todo-app-tasks';
+
 export const TodoApp = () => {
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [todos, setTodos] = useState<Todo[]>(() => {
+    // Charger les tâches depuis localStorage au démarrage
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Reconvertir les dates en objets Date
+        return parsed.map((todo: any) => ({
+          ...todo,
+          createdAt: new Date(todo.createdAt),
+          scheduledFor: todo.scheduledFor ? new Date(todo.scheduledFor) : undefined,
+        }));
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des tâches:', error);
+    }
+    return [];
+  });
   const { toast } = useToast();
+
+  // Sauvegarder les tâches dans localStorage à chaque modification
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des tâches:', error);
+    }
+  }, [todos]);
 
   // Système de notification sonore
   const playNotificationSound = useCallback(() => {
