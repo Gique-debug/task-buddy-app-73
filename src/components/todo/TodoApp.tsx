@@ -33,6 +33,7 @@ export const TodoApp = () => {
   const { toast } = useToast();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [activeAlarms, setActiveAlarms] = useState<Map<string, NodeJS.Timeout>>(new Map());
+  const [scheduledTimeouts, setScheduledTimeouts] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
   // Enregistrer le Service Worker et demander la permission pour les notifications
   useEffect(() => {
@@ -151,66 +152,116 @@ export const TodoApp = () => {
     });
   }, []);
 
-  // Vérifier les tâches programmées toutes les 10 secondes
+  // Programmer les alarmes précises pour chaque tâche
   useEffect(() => {
-    const checkTasks = async () => {
+    // Nettoyer tous les timeouts existants
+    scheduledTimeouts.forEach(timeout => clearTimeout(timeout));
+    const newTimeouts = new Map<string, NodeJS.Timeout>();
+
+    const now = new Date();
+    
+    todos.forEach(todo => {
+      if (
+        todo.scheduledFor &&
+        !todo.notified &&
+        !todo.completed &&
+        todo.scheduledFor > now
+      ) {
+        // Calculer le délai jusqu'à l'heure de la tâche
+        const delay = todo.scheduledFor.getTime() - now.getTime();
+        
+        // Créer un timeout qui sonnera exactement à l'heure prévue
+        const timeout = setTimeout(() => {
+          // Démarrer l'alarme répétée de 2 minutes
+          startAlarm(todo.id);
+          
+          // Afficher la notification native si permission accordée
+          if (Notification.permission === 'granted') {
+            new Notification('⏰ Rappel de tâche !', {
+              body: todo.text,
+              icon: '/favicon.ico',
+              tag: todo.id,
+            });
+          }
+          
+          // Afficher aussi le toast
+          toast({
+            title: "⏰ Rappel de tâche !",
+            description: todo.text,
+            duration: 5000,
+          });
+          
+          // Marquer la tâche comme notifiée
+          setTodos(prev =>
+            prev.map(t =>
+              t.id === todo.id ? { ...t, notified: true } : t
+            )
+          );
+        }, delay);
+        
+        newTimeouts.set(todo.id, timeout);
+      }
+    });
+    
+    setScheduledTimeouts(newTimeouts);
+    
+    return () => {
+      // Nettoyer tous les timeouts au démontage
+      newTimeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [todos, startAlarm, toast]);
+
+  // Vérifier les tâches en retard toutes les 10 secondes (backup)
+  useEffect(() => {
+    const checkOverdueTasks = async () => {
       const now = new Date();
       
-      // Si le Service Worker est disponible, lui envoyer les tâches
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'CHECK_SCHEDULED_TASKS',
-          todos: todos
-        });
-      } else {
-        // Fallback : vérifier localement si pas de Service Worker
-        setTodos(prev => 
-          prev.map(todo => {
-            if (
-              todo.scheduledFor &&
-              !todo.notified &&
-              !todo.completed &&
-              todo.scheduledFor <= now
-            ) {
-              // Démarrer l'alarme répétée de 2 minutes
-              startAlarm(todo.id);
-              
-              // Afficher la notification native si permission accordée
-              if (Notification.permission === 'granted') {
-                new Notification('⏰ Rappel de tâche !', {
-                  body: todo.text,
-                  icon: '/favicon.ico',
-                  tag: todo.id,
-                });
-              }
-              
-              // Afficher aussi le toast
-              toast({
-                title: "⏰ Rappel de tâche !",
-                description: todo.text,
-                duration: 5000,
+      setTodos(prev => 
+        prev.map(todo => {
+          if (
+            todo.scheduledFor &&
+            !todo.notified &&
+            !todo.completed &&
+            todo.scheduledFor <= now
+          ) {
+            // Démarrer l'alarme répétée de 2 minutes
+            startAlarm(todo.id);
+            
+            // Afficher la notification native si permission accordée
+            if (Notification.permission === 'granted') {
+              new Notification('⏰ Rappel de tâche !', {
+                body: todo.text,
+                icon: '/favicon.ico',
+                tag: todo.id,
               });
-              
-              return { ...todo, notified: true };
             }
-            return todo;
-          })
-        );
-      }
+            
+            // Afficher aussi le toast
+            toast({
+              title: "⏰ Rappel de tâche !",
+              description: todo.text,
+              duration: 5000,
+            });
+            
+            return { ...todo, notified: true };
+          }
+          return todo;
+        })
+      );
     };
 
     // Vérifier immédiatement au chargement
-    checkTasks();
+    checkOverdueTasks();
     
-    // Puis vérifier toutes les 10 secondes
-    const interval = setInterval(checkTasks, 10000);
+    // Puis vérifier toutes les 10 secondes (backup pour les tâches déjà en retard)
+    const interval = setInterval(checkOverdueTasks, 10000);
 
     return () => {
       clearInterval(interval);
       // Nettoyer toutes les alarmes actives au démontage
       activeAlarms.forEach(alarm => clearInterval(alarm));
     };
-  }, [todos, playNotificationSound, toast, startAlarm, activeAlarms]);
+  }, [toast, startAlarm, activeAlarms]);
 
   const addTodo = (text: string, scheduledFor?: Date) => {
     // Check task limit
