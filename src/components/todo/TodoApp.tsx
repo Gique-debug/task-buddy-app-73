@@ -5,8 +5,10 @@ import { AddTodo } from './AddTodo';
 import { TodoList } from './TodoList';
 import { TodoStats } from './TodoStats';
 import { useToast } from '@/hooks/use-toast';
+import { todoSchema } from '@/lib/validation';
 
 const STORAGE_KEY = 'todo-app-tasks';
+const MAX_TASKS = 1000;
 
 export const TodoApp = () => {
   const [todos, setTodos] = useState<Todo[]>(() => {
@@ -23,7 +25,8 @@ export const TodoApp = () => {
         }));
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des tâches:', error);
+      // Silently handle storage errors
+      return [];
     }
     return [];
   });
@@ -77,9 +80,14 @@ export const TodoApp = () => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde des tâches:', error);
+      // Storage quota exceeded
+      toast({
+        title: "Erreur de stockage",
+        description: "Impossible de sauvegarder. Supprimez des tâches anciennes.",
+        variant: "destructive",
+      });
     }
-  }, [todos]);
+  }, [todos, toast]);
 
   // Système de notification sonore
   const playNotificationSound = useCallback(() => {
@@ -205,6 +213,27 @@ export const TodoApp = () => {
   }, [todos, playNotificationSound, toast, startAlarm, activeAlarms]);
 
   const addTodo = (text: string, scheduledFor?: Date) => {
+    // Check task limit
+    if (todos.length >= MAX_TASKS) {
+      toast({
+        title: "Limite atteinte",
+        description: `Vous ne pouvez pas créer plus de ${MAX_TASKS} tâches`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validate input
+    const result = todoSchema.safeParse({ text, scheduledFor });
+    if (!result.success) {
+      toast({
+        title: "Erreur de validation",
+        description: result.error.errors[0].message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const newTodo: Todo = {
       id: crypto.randomUUID(),
       text: text.trim(),
@@ -228,6 +257,17 @@ export const TodoApp = () => {
   };
 
   const updateTodo = (id: string, text: string, scheduledFor?: Date) => {
+    // Validate input
+    const result = todoSchema.safeParse({ text, scheduledFor });
+    if (!result.success) {
+      toast({
+        title: "Erreur de validation",
+        description: result.error.errors[0].message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setTodos(prev =>
       prev.map(todo =>
         todo.id === id 

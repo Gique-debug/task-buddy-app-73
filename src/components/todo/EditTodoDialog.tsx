@@ -9,6 +9,8 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Todo } from '@/types/todo';
+import { todoSchema } from '@/lib/validation';
+import { useToast } from '@/hooks/use-toast';
 
 interface EditTodoDialogProps {
   todo: Todo;
@@ -25,6 +27,7 @@ export const EditTodoDialog = ({ todo, open, onOpenChange, onUpdate }: EditTodoD
   const [selectedTime, setSelectedTime] = useState(
     todo.scheduledFor ? format(new Date(todo.scheduledFor), 'HH:mm') : ''
   );
+  const { toast } = useToast();
 
   useEffect(() => {
     setText(todo.text);
@@ -34,18 +37,30 @@ export const EditTodoDialog = ({ todo, open, onOpenChange, onUpdate }: EditTodoD
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (text.trim()) {
-      let scheduledFor: Date | undefined = undefined;
-      
-      if (selectedDate && selectedTime) {
-        const [hours, minutes] = selectedTime.split(':').map(Number);
-        scheduledFor = new Date(selectedDate);
-        scheduledFor.setHours(hours, minutes, 0, 0);
-      }
-      
-      onUpdate(todo.id, text, scheduledFor);
-      onOpenChange(false);
+    
+    if (!text.trim()) return;
+    
+    let scheduledFor: Date | undefined = undefined;
+    
+    if (selectedDate && selectedTime) {
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      scheduledFor = new Date(selectedDate);
+      scheduledFor.setHours(hours, minutes, 0, 0);
     }
+    
+    // Validate input
+    const result = todoSchema.safeParse({ text, scheduledFor });
+    if (!result.success) {
+      toast({
+        title: "Erreur de validation",
+        description: result.error.errors[0].message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    onUpdate(todo.id, text, scheduledFor);
+    onOpenChange(false);
   };
 
   const resetScheduling = () => {
@@ -68,6 +83,7 @@ export const EditTodoDialog = ({ todo, open, onOpenChange, onUpdate }: EditTodoD
               placeholder="Texte de la tâche..."
               className="h-12 text-base"
               autoFocus
+              maxLength={500}
             />
           </div>
 

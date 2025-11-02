@@ -7,6 +7,8 @@ import { Plus, Calendar as CalendarIcon, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { todoSchema } from '@/lib/validation';
+import { useToast } from '@/hooks/use-toast';
 
 interface AddTodoProps {
   onAdd: (text: string, scheduledFor?: Date) => void;
@@ -17,24 +19,37 @@ export const AddTodo = ({ onAdd }: AddTodoProps) => {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState('');
   const [showScheduling, setShowScheduling] = useState(false);
+  const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (text.trim()) {
-      let scheduledFor: Date | undefined = undefined;
-      
-      if (selectedDate && selectedTime) {
-        const [hours, minutes] = selectedTime.split(':').map(Number);
-        scheduledFor = new Date(selectedDate);
-        scheduledFor.setHours(hours, minutes, 0, 0);
-      }
-      
-      onAdd(text, scheduledFor);
-      setText('');
-      setSelectedDate(undefined);
-      setSelectedTime('');
-      setShowScheduling(false);
+    
+    if (!text.trim()) return;
+    
+    let scheduledFor: Date | undefined = undefined;
+    
+    if (selectedDate && selectedTime) {
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      scheduledFor = new Date(selectedDate);
+      scheduledFor.setHours(hours, minutes, 0, 0);
     }
+    
+    // Validate input
+    const result = todoSchema.safeParse({ text, scheduledFor });
+    if (!result.success) {
+      toast({
+        title: "Erreur de validation",
+        description: result.error.errors[0].message,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    onAdd(text, scheduledFor);
+    setText('');
+    setSelectedDate(undefined);
+    setSelectedTime('');
+    setShowScheduling(false);
   };
 
   const resetScheduling = () => {
@@ -51,6 +66,7 @@ export const AddTodo = ({ onAdd }: AddTodoProps) => {
           onChange={(e) => setText(e.target.value)}
           placeholder="Ajouter une nouvelle tâche..."
           className="flex-1 h-12 text-base border-border/50 focus:ring-2 focus:ring-primary/20 transition-all duration-300"
+          maxLength={500}
         />
         
         <Button
