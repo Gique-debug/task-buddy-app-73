@@ -28,6 +28,48 @@ export const TodoApp = () => {
     return [];
   });
   const { toast } = useToast();
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+
+  // Enregistrer le Service Worker et demander la permission pour les notifications
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'Notification' in window) {
+      // Enregistrer le Service Worker
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('Service Worker enregistré:', registration);
+        })
+        .catch(error => {
+          console.error('Erreur lors de l\'enregistrement du Service Worker:', error);
+        });
+
+      // Demander la permission pour les notifications
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationPermission(permission);
+          if (permission === 'granted') {
+            toast({
+              title: "✅ Notifications activées",
+              description: "Vous recevrez des rappels même si l'onglet est fermé",
+              duration: 3000,
+            });
+          }
+        });
+      } else {
+        setNotificationPermission(Notification.permission);
+      }
+
+      // Écouter les messages du Service Worker
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data.type === 'TASK_NOTIFIED') {
+          setTodos(prev =>
+            prev.map(todo =>
+              todo.id === event.data.todoId ? { ...todo, notified: true } : todo
+            )
+          );
+        }
+      });
+    }
+  }, [toast]);
 
   // Sauvegarder les tâches dans localStorage à chaque modification
   useEffect(() => {
@@ -58,38 +100,62 @@ export const TodoApp = () => {
     oscillator.stop(audioContext.currentTime + 0.5);
   }, []);
 
-  // Vérifier les tâches programmées toutes les minutes
+  // Vérifier les tâches programmées toutes les 10 secondes
   useEffect(() => {
-    const interval = setInterval(() => {
+    const checkTasks = async () => {
       const now = new Date();
       
-      setTodos(prev => 
-        prev.map(todo => {
-          if (
-            todo.scheduledFor &&
-            !todo.notified &&
-            !todo.completed &&
-            todo.scheduledFor <= now
-          ) {
-            // Jouer le son de notification
-            playNotificationSound();
-            
-            // Afficher la notification toast
-            toast({
-              title: "⏰ Rappel de tâche !",
-              description: todo.text,
-              duration: 5000,
-            });
-            
-            return { ...todo, notified: true };
-          }
-          return todo;
-        })
-      );
-    }, 60000); // Vérifier chaque minute
+      // Si le Service Worker est disponible, lui envoyer les tâches
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'CHECK_SCHEDULED_TASKS',
+          todos: todos
+        });
+      } else {
+        // Fallback : vérifier localement si pas de Service Worker
+        setTodos(prev => 
+          prev.map(todo => {
+            if (
+              todo.scheduledFor &&
+              !todo.notified &&
+              !todo.completed &&
+              todo.scheduledFor <= now
+            ) {
+              // Jouer le son de notification
+              playNotificationSound();
+              
+              // Afficher la notification native si permission accordée
+              if (Notification.permission === 'granted') {
+                new Notification('⏰ Rappel de tâche !', {
+                  body: todo.text,
+                  icon: '/favicon.ico',
+                  tag: todo.id,
+                });
+              }
+              
+              // Afficher aussi le toast
+              toast({
+                title: "⏰ Rappel de tâche !",
+                description: todo.text,
+                duration: 5000,
+              });
+              
+              return { ...todo, notified: true };
+            }
+            return todo;
+          })
+        );
+      }
+    };
+
+    // Vérifier immédiatement au chargement
+    checkTasks();
+    
+    // Puis vérifier toutes les 10 secondes
+    const interval = setInterval(checkTasks, 10000);
 
     return () => clearInterval(interval);
-  }, [playNotificationSound, toast]);
+  }, [todos, playNotificationSound, toast]);
 
   const addTodo = (text: string, scheduledFor?: Date) => {
     const newTodo: Todo = {
